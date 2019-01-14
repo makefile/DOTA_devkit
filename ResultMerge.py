@@ -36,8 +36,9 @@ def py_cpu_nms_poly(dets, thresh):
         if order.size == 1: # in case of np.where warning
             return keep
         ovr = []
-        for j in range(order.size - 1):
-            iou = polyiou.iou_poly(polys[i], polys[order[j + 1]])
+        for _j in range(1, order.size):
+            j = order[_j]
+            iou = polyiou.iou_poly(polys[i], polys[j])
             ovr.append(iou)
             if np.isnan(iou):
                 # BUG: when the poly points are collinear, the calculation will get nan
@@ -51,6 +52,9 @@ def py_cpu_nms_poly(dets, thresh):
 def py_cpu_nms(dets, thresh):
     """Pure Python NMS baseline."""
     #print('dets:', dets)
+    if dets.shape[0] == 0:
+        return []
+
     x1 = dets[:, 0]
     y1 = dets[:, 1]
     x2 = dets[:, 2]
