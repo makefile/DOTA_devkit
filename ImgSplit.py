@@ -124,69 +124,66 @@ class splitbase():
         mask_poly = []
         imgpoly = shgeo.Polygon([(left, up), (right, up), (right, down),
                                  (left, down)])
-        has_output = False
         out_lines = ''
-        try:
-            for obj in objects:
-                gtpoly = shgeo.Polygon([(obj['poly'][0], obj['poly'][1]),
-                                         (obj['poly'][2], obj['poly'][3]),
-                                         (obj['poly'][4], obj['poly'][5]),
-                                         (obj['poly'][6], obj['poly'][7])])
-                if (gtpoly.area <= 0):
+        for obj in objects:
+            gtpoly = shgeo.Polygon([(obj['poly'][0], obj['poly'][1]),
+                                     (obj['poly'][2], obj['poly'][3]),
+                                     (obj['poly'][4], obj['poly'][5]),
+                                     (obj['poly'][6], obj['poly'][7])])
+            if (gtpoly.area <= 0):
+                continue
+            inter_poly, half_iou = self.calchalf_iou(gtpoly, imgpoly)
+
+            # print('writing...')
+            if (half_iou == 1):
+                polyInsub = self.polyorig2sub(left, up, obj['poly'])
+                outline = ' '.join(list(map(str, polyInsub)))
+                outline = outline + ' ' + obj['name'] + ' ' + str(obj['difficult'])
+                out_lines += outline + '\n'
+            elif (half_iou > 0):
+            #elif (half_iou > self.thresh):
+              ##  print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
+                inter_poly = shgeo.polygon.orient(inter_poly, sign=1)
+                out_poly = list(inter_poly.exterior.coords)[0: -1]
+                if len(out_poly) < 4:
                     continue
-                inter_poly, half_iou = self.calchalf_iou(gtpoly, imgpoly)
 
-                # print('writing...')
-                if (half_iou == 1):
-                    polyInsub = self.polyorig2sub(left, up, obj['poly'])
-                    outline = ' '.join(list(map(str, polyInsub)))
+                out_poly2 = []
+                for i in range(len(out_poly)):
+                    out_poly2.append(out_poly[i][0])
+                    out_poly2.append(out_poly[i][1])
+
+                if (len(out_poly) == 5):
+                    #print('==========================')
+                    out_poly2 = self.GetPoly4FromPoly5(out_poly2)
+                elif (len(out_poly) > 5):
+                    """
+                        if the cut instance is a polygon with points more than 5, we do not handle it currently
+                    """
+                    continue
+                if (self.choosebestpoint):
+                    out_poly2 = choose_best_pointorder_fit_another(out_poly2, obj['poly'])
+
+                polyInsub = self.polyorig2sub(left, up, out_poly2)
+
+                for index, item in enumerate(polyInsub):
+                    if (item <= 1):
+                        polyInsub[index] = 1
+                    elif (item >= self.subsize):
+                        polyInsub[index] = self.subsize
+                outline = ' '.join(list(map(str, polyInsub)))
+                if (half_iou > self.thresh):
                     outline = outline + ' ' + obj['name'] + ' ' + str(obj['difficult'])
-                    out_lines += outline + '\n'
-                    has_output = True
-                elif (half_iou > 0):
-                #elif (half_iou > self.thresh):
-                  ##  print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
-                    inter_poly = shgeo.polygon.orient(inter_poly, sign=1)
-                    out_poly = list(inter_poly.exterior.coords)[0: -1]
-                    if len(out_poly) < 4:
-                        continue
-
-                    out_poly2 = []
-                    for i in range(len(out_poly)):
-                        out_poly2.append(out_poly[i][0])
-                        out_poly2.append(out_poly[i][1])
-
-                    if (len(out_poly) == 5):
-                        #print('==========================')
-                        out_poly2 = self.GetPoly4FromPoly5(out_poly2)
-                    elif (len(out_poly) > 5):
-                        """
-                            if the cut instance is a polygon with points more than 5, we do not handle it currently
-                        """
-                        continue
-                    if (self.choosebestpoint):
-                        out_poly2 = choose_best_pointorder_fit_another(out_poly2, obj['poly'])
-
-                    polyInsub = self.polyorig2sub(left, up, out_poly2)
-
-                    for index, item in enumerate(polyInsub):
-                        if (item <= 1):
-                            polyInsub[index] = 1
-                        elif (item >= self.subsize):
-                            polyInsub[index] = self.subsize
-                    outline = ' '.join(list(map(str, polyInsub)))
-                    if (half_iou > self.thresh):
-                        outline = outline + ' ' + obj['name'] + ' ' + str(obj['difficult'])
-                    else:
-                        ## if the left part is too small, label as '2'
-                        outline = outline + ' ' + obj['name'] + ' ' + '2'
-                    outlines += outline + '\n'
-                #else:
-                 #   mask_poly.append(inter_poly)
-                has_output = True 
-        if has_output:
+                else:
+                    ## if the left part is too small, label as '2'
+                    outline = outline + ' ' + obj['name'] + ' ' + '2'
+                out_lines += outline + '\n'
+            #else:
+             #   mask_poly.append(inter_poly)
+        
+        if out_lines != '':
             with codecs.open(outdir, 'w', self.code) as f_out:
-                f_out.write(outlines)
+                f_out.write(out_lines)
             self.saveimagepatches(resizeimg, subimgname, left, up)
 
     def SplitSingle(self, name, rate, extent):
@@ -251,8 +248,9 @@ if __name__ == '__main__':
     #                   r'examplesplit')
     split = splitbase(r'../DOTA/val',
                        r'../DOTA/val-split')
+    split.splitdata(1)
     split = splitbase(r'../DOTA/train',
                        r'../DOTA/train-split')
+    split.splitdata(1)
     # if split test set, use SplitOnlyImage.py instead
     
-    split.splitdata(1)
